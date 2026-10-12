@@ -1,5 +1,9 @@
 package memory
 
+import (
+	"github.com/annaxiomm/moa/errors"
+)
+
 const MemorySize = 1024 * 64 // 64 KiB of memory
 
 type Memory [MemorySize]uint8
@@ -16,6 +20,22 @@ func (m *Memory) Read(addr uint16) uint8 {
 	return m[addr]
 }
 
-func (m *Memory) Write(addr uint16, value uint8) {
+// Primary write function for use in programs
+func (m *Memory) Write(addr uint16, value uint8) error {
+	// Programs shouldn't be able to write to their own ROM
+	if addr <= 0x3FFF {
+		return &errors.ExecutionError{
+			Type:    errors.WriteToROM,
+			Address: addr,
+		}
+	}
+
+	m[addr] = value
+
+	return nil
+}
+
+// Unsafe write function that allows you to write anywhere in memory - should only be used for program loading!
+func (m *Memory) WriteUnsafe(addr uint16, value uint8) {
 	m[addr] = value
 }

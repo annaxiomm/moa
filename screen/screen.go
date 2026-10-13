@@ -10,6 +10,7 @@ const (
 	Height      = 128
 	Scale       = 4
 	Framebuffer = uint16(0x6600)
+	Speed       = 10000 // number of instructions executed per frame
 )
 
 type Screen struct {
@@ -27,8 +28,8 @@ func New(c *cpu.Cpu) *Screen {
 }
 
 func (s *Screen) Update() error {
-	// Execute up to 1000 instructions per frame.
-	for i := 0; i < 1000 && !s.Cpu.Halted; i++ {
+	// Execute up to n instructions per frame.
+	for i := 0; i < Speed && !s.Cpu.Halted; i++ {
 		if err := s.Cpu.Step(); err != nil {
 			return err
 		}
@@ -43,10 +44,10 @@ func (s *Screen) Draw(dst *ebiten.Image) {
 		value := s.Cpu.Memory.Read(Framebuffer + uint16(i))
 		offset := i * 4
 
-		s.Pixels[offset] = value   // Red
-		s.Pixels[offset+1] = value // Green
-		s.Pixels[offset+2] = value // Blue
-		s.Pixels[offset+3] = 255   // Alpha
+		s.Pixels[offset] = value * 2   // Red
+		s.Pixels[offset+1] = value * 2 // Green
+		s.Pixels[offset+2] = value * 2 // Blue
+		s.Pixels[offset+3] = 255       // Alpha
 	}
 
 	s.Image.WritePixels(s.Pixels)

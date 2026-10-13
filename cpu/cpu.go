@@ -16,6 +16,7 @@ const (
 	LD  = 0x12 // load 1 byte from memory into a register
 	ST  = 0x13 // store the value of a register into memory
 	MOV = 0x14 // copy one register to another
+	STR = 0x15 // stores the value of a register in the memory address stored in another register
 
 	INC = 0x20 // increment a register
 	DEC = 0x21 // decrement a register
@@ -25,7 +26,7 @@ const (
 	JNZ = 0x31 // jump if zero flag is not set
 )
 
-type Registers [8]uint8
+type Registers [8]uint16
 
 type Cpu struct {
 	Memory    memory.Memory
@@ -76,20 +77,16 @@ func (c *Cpu) Step() error {
 
 	case LDI:
 		register := c.FetchByte()
-		byte := c.FetchByte()
+		word := c.FetchWord()
 
-		if err := c.LoadRegister(register, byte); err != nil {
+		if err := c.LoadRegister(register, word); err != nil {
 			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
 		}
 
 	case STI:
-		// Moa is little endian so the least significant byte comes firts
-		lo := uint16(c.FetchByte())
-		hi := uint16(c.FetchByte())
+		location := c.FetchWord()
 		value := c.FetchByte()
-
-		location := (hi << 8) | lo
 
 		if err := c.Memory.Write(location, value); err != nil {
 			err.(*errors.ExecutionError).Pc = instructionPc
@@ -98,21 +95,15 @@ func (c *Cpu) Step() error {
 
 	case LD:
 		register := c.FetchByte()
-		lo := uint16(c.FetchByte())
-		hi := uint16(c.FetchByte())
+		location := c.FetchWord()
 
-		location := (hi << 8) | lo
-
-		if err := c.LoadRegister(register, c.Memory.Read(location)); err != nil {
+		if err := c.LoadRegister(register, uint16(c.Memory.Read(location))); err != nil {
 			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
 		}
 	case ST:
-		lo := uint16(c.FetchByte())
-		hi := uint16(c.FetchByte())
+		location := c.FetchWord()
 		register := c.FetchByte()
-
-		location := (hi << 8) | lo
 
 		value, err := c.ReadRegister(register)
 		if err != nil {
@@ -120,9 +111,13 @@ func (c *Cpu) Step() error {
 			return err
 		}
 
-		if err := c.Memory.Write(location, value); err != nil {
+		if err := c.Memory.Write(location, uint8(value)); err != nil {
 			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
+		}
+
+		if location == 0xA600 {
+			fmt.Print(string(c.Memory.Read(location)))
 		}
 
 	case MOV:
@@ -140,14 +135,37 @@ func (c *Cpu) Step() error {
 			return err
 		}
 
+	case STR:
+		register1 := c.FetchByte()
+		register2 := c.FetchByte()
+
+		location, err := c.ReadRegister(register1)
+		if err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
+		value, err := c.ReadRegister(register2)
+		if err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
+		if err := c.Memory.Write(location, uint8(value)); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
 	case INC:
 		register := c.FetchByte()
 		current, err := c.ReadRegister(register)
 		if err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
 		}
 
 		if err := c.LoadRegister(register, current+1); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
 		}
 
@@ -155,10 +173,12 @@ func (c *Cpu) Step() error {
 		register := c.FetchByte()
 		current, err := c.ReadRegister(register)
 		if err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
 		}
 
 		if err := c.LoadRegister(register, current-1); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
 		}
 
@@ -193,7 +213,6 @@ func (c *Cpu) Step() error {
 		}
 
 	default:
-		fmt.Printf("0x%02X\n", c.Memory.Read(c.Pc))
 		return &errors.ExecutionError{
 			Type:   errors.InvalidOpcode,
 			Opcode: opcode,
@@ -210,16 +229,22 @@ func (c *Cpu) FetchByte() uint8 {
 	return value
 }
 
-func (c *Cpu) LoadRegister(register uint8, value uint8) error {
+func (c *Cpu) FetchWord() uint16 {
+	lo := uint16(c.FetchByte())
+	hi := uint16(c.FetchByte())
+	return (hi << 8) | lo
+}
+
+func (c *Cpu) LoadRegister(register uint8, value uint16) error {
 	if register > uint8(len(c.Registers)-1) {
-		return &errors.ExecutionError{Type: errors.InvalidRegister, Register: value}
+		return &errors.ExecutionError{Type: errors.InvalidRegister, Register: register}
 	}
 
 	c.Registers[register] = value
 	return nil
 }
 
-func (c *Cpu) ReadRegister(register uint8) (uint8, error) {
+func (c *Cpu) ReadRegister(register uint8) (uint16, error) {
 	if register > uint8(len(c.Registers)-1) {
 		return 0, &errors.ExecutionError{Type: errors.InvalidRegister, Register: register}
 	}

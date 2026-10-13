@@ -13,3 +13,8 @@
 
 ## Todo
 - [ ] Proper error handling
+
+## File formats
+- `.moa` - moa assembly source (not implemented)
+- `.mxe` - compiled moa bytecode (not implemented)
+- `.mhrbc` - moa human readable bytecode

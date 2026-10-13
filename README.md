@@ -9,6 +9,7 @@
 | STI    | 0x11 | location, value | Stores instantaneous value in memory |
 | LD     | 0x12 | register, location | Loads value from memory into register |
 | ST     | 0x13 | location, register | Stores value from register in memory |
+| MOV    | 0x14 | destination, source | Copies value from source register to destination register |
 
 ## Todo
 - [ ] Proper error handling

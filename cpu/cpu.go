@@ -15,6 +15,14 @@ const (
 	STI = 0x11 // store instantaneous value in memory
 	LD  = 0x12 // load 1 byte from memory into a register
 	ST  = 0x13 // store the value of a register into memory
+	MOV = 0x14 // copy one register to another
+
+	INC = 0x20 // increment a register
+	DEC = 0x21 // decrement a register
+	CMP = 0x22 // compare two registers, set zero flag to true if they are equal
+
+	JMP = 0x30 // unconditional jump
+	JNZ = 0x31 // jump if zero flag is not set
 )
 
 type Registers [8]uint8
@@ -24,10 +32,11 @@ type Cpu struct {
 	Registers Registers
 	Pc        uint16
 	Halted    bool
+	Zero      bool
 }
 
 func InitCpu() Cpu {
-	return Cpu{Memory: memory.Memory{}, Registers: Registers{}, Pc: 0, Halted: false}
+	return Cpu{Memory: memory.Memory{}, Registers: Registers{}, Pc: 0, Halted: false, Zero: false}
 }
 
 func (c *Cpu) Load(program []uint8) {
@@ -115,6 +124,74 @@ func (c *Cpu) Step() error {
 			err.(*errors.ExecutionError).Pc = instructionPc
 			return err
 		}
+
+	case MOV:
+		register1 := c.FetchByte()
+		register2 := c.FetchByte()
+
+		value, err := c.ReadRegister(register2)
+		if err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
+		if err := c.LoadRegister(register1, value); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
+	case INC:
+		register := c.FetchByte()
+		current, err := c.ReadRegister(register)
+		if err != nil {
+			return err
+		}
+
+		if err := c.LoadRegister(register, current+1); err != nil {
+			return err
+		}
+
+	case DEC:
+		register := c.FetchByte()
+		current, err := c.ReadRegister(register)
+		if err != nil {
+			return err
+		}
+
+		if err := c.LoadRegister(register, current-1); err != nil {
+			return err
+		}
+
+	case CMP:
+		register1, err := c.ReadRegister(c.FetchByte())
+		if err != nil {
+			return err
+		}
+
+		register2, err := c.ReadRegister(c.FetchByte())
+		if err != nil {
+			return err
+		}
+
+		if register1 == register2 {
+			c.Zero = true
+		} else {
+			c.Zero = false
+		}
+
+	case JMP:
+		lo := uint16(c.FetchByte())
+		hi := uint16(c.FetchByte())
+		c.Pc = uint16((hi << 8) | lo)
+
+	case JNZ:
+		lo := uint16(c.FetchByte())
+		hi := uint16(c.FetchByte())
+
+		if !c.Zero {
+			c.Pc = uint16((hi << 8) | lo)
+		}
+
 	default:
 		fmt.Printf("0x%02X\n", c.Memory.Read(c.Pc))
 		return &errors.ExecutionError{

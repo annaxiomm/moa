@@ -21,6 +21,10 @@ const (
 	INC = 0x20 // increment a register
 	DEC = 0x21 // decrement a register
 	CMP = 0x22 // compare two registers, set zero flag to true if they are equal
+	ADD = 0x23 // add the values of two registers and store it in the first
+	SUB = 0x24 // subtract the value of a register from another and store it in the first
+	MUL = 0x25 // multiply two registers together and store it in the first
+	DIV = 0x26 // integer divide one register by another and store it in the first
 
 	JMP = 0x30 // unconditional jump
 	JNZ = 0x31 // jump if zero flag is not set
@@ -34,10 +38,11 @@ type Cpu struct {
 	Pc        uint16
 	Halted    bool
 	Zero      bool
+	Carry     bool
 }
 
 func InitCpu() Cpu {
-	return Cpu{Memory: memory.Memory{}, Registers: Registers{}, Pc: 0, Halted: false, Zero: false}
+	return Cpu{Memory: memory.Memory{}, Registers: Registers{}, Pc: 0, Halted: false, Zero: false, Carry: false}
 }
 
 func (c *Cpu) Load(program []uint8) {
@@ -197,6 +202,89 @@ func (c *Cpu) Step() error {
 			c.Zero = true
 		} else {
 			c.Zero = false
+		}
+
+	case ADD:
+		destination := c.FetchByte()
+		register1, err := c.ReadRegister(destination)
+		if err != nil {
+			return err
+		}
+
+		register2, err := c.ReadRegister(c.FetchByte())
+		if err != nil {
+			return err
+		}
+
+		wide := uint32(register1) + uint32(register2)
+		short := uint16(wide)
+		c.Carry = wide > 0xFFFF
+
+		if err := c.LoadRegister(destination, short); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
+	case SUB:
+		destination := c.FetchByte()
+		register1, err := c.ReadRegister(destination)
+		if err != nil {
+			return err
+		}
+
+		register2, err := c.ReadRegister(c.FetchByte())
+		if err != nil {
+			return err
+		}
+
+		value := register1 - register2
+		c.Carry = register1 >= register2
+
+		if err := c.LoadRegister(destination, value); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
+	case MUL:
+		destination := c.FetchByte()
+		register1, err := c.ReadRegister(destination)
+		if err != nil {
+			return err
+		}
+
+		register2, err := c.ReadRegister(c.FetchByte())
+		if err != nil {
+			return err
+		}
+
+		wide := uint32(register1) * uint32(register2)
+		short := uint16(wide)
+		c.Carry = wide > 0xFFFF
+
+		if err := c.LoadRegister(destination, short); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
+		}
+
+	case DIV:
+		destination := c.FetchByte()
+		register1, err := c.ReadRegister(destination)
+		if err != nil {
+			return err
+		}
+
+		register2, err := c.ReadRegister(c.FetchByte())
+		if err != nil {
+			return err
+		}
+
+		if register2 == 0 {
+			return &errors.ExecutionError{Type: errors.DivideByZero, Pc: instructionPc}
+		}
+
+		if err := c.LoadRegister(destination, register1/register2); err != nil {
+			err.(*errors.ExecutionError).Pc = instructionPc
+			return err
 		}
 
 	case JMP:

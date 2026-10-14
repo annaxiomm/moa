@@ -9,6 +9,7 @@ const (
 	InvalidOpcode
 	EndOfROM
 	InvalidRegister
+	DivideByZero
 )
 
 type ExecutionError struct {
@@ -29,6 +30,8 @@ func (e *ExecutionError) Error() string {
 		return "program counter reached end of ROM"
 	case InvalidRegister:
 		return fmt.Sprintf("attempted to access invalid register %d", e.Register)
+	case DivideByZero:
+		return "attempted to divide by zero"
 	default:
 		return "unknown execution error"
 	}

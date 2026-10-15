@@ -5,8 +5,10 @@ import (
 	"os"
 	"path"
 
+	"github.com/annaxiomm/moa/assembler"
 	"github.com/annaxiomm/moa/cli"
 	"github.com/annaxiomm/moa/emulator"
+	"github.com/annaxiomm/moa/errors"
 )
 
 func main() {
@@ -52,14 +54,18 @@ func main() {
 			panic(err)
 		}
 
-		bytecode, err := assembler.Assemble(code)
+		/*bytecode, err := assembler.Assemble(string(code))
 		if err != nil {
 			panic(err)
 		}
 
-		err := os.WriteFile(path.Join(wd, args.Output), bytecode, 0644)
+		err = os.WriteFile(path.Join(wd, args.Output), bytecode, 0644)
 		if err != nil {
 			panic(err)
+			}*/
+
+		if err := assembler.Assemble(string(code)); err != nil {
+			errors.PrintError(err)
 		}
 	}
 }

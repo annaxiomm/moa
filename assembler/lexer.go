@@ -1,9 +1,10 @@
 package assembler
 
 import (
-	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/annaxiomm/moa/errors"
 )
 
 type Tokentype int
@@ -35,6 +36,8 @@ const (
 	COMMA
 	LABEL
 	IDENT
+	NEWLINE
+	EOF
 )
 
 type Token struct {
@@ -46,6 +49,7 @@ type Lexer struct {
 	Code    string
 	Pointer int
 	Tokens  []Token
+	Line    int
 }
 
 func NewLexer(code string) Lexer {
@@ -53,20 +57,21 @@ func NewLexer(code string) Lexer {
 		Code:    code,
 		Pointer: 0,
 		Tokens:  []Token{},
+		Line:    1,
 	}
 }
 
-func (l *Lexer) Lex() []Token {
+func (l *Lexer) Lex() ([]Token, error) {
 	for l.Pointer < len(l.Code) {
 		switch l.Code[l.Pointer] {
 		case ';':
-			fmt.Println("comment detected")
 			for l.Peek() != '\n' {
 				l.Advance()
 			}
 
+			l.Advance() // consume last newline
+
 		case '$':
-			fmt.Println("register detected")
 			var tmp strings.Builder
 			for !l.IsWhitespace(l.Peek()) && l.Peek() != ',' {
 				tmp.WriteByte(l.Peek())
@@ -79,8 +84,11 @@ func (l *Lexer) Lex() []Token {
 			l.AddToken(COMMA, ",")
 
 		case ' ':
-		case '\n':
 		case '\t':
+
+		case '\n':
+			l.AddToken(NEWLINE, "\\n")
+			l.Line++
 
 		default:
 			if l.IsNumber(l.Code[l.Pointer]) {
@@ -93,7 +101,7 @@ func (l *Lexer) Lex() []Token {
 
 				number := tmp.String()
 				l.AddToken(NUMBER, number)
-			} else {
+			} else if l.IsAlpha(l.Code[l.Pointer]) {
 				var tmp strings.Builder
 				tmp.WriteByte(l.Code[l.Pointer])
 				for !l.IsWhitespace(l.Peek()) {
@@ -109,11 +117,18 @@ func (l *Lexer) Lex() []Token {
 				} else {
 					l.AddToken(IDENT, str)
 				}
+			} else {
+				return []Token{}, &errors.LexError{
+					Type: errors.InvalidCharacter,
+					Char: string(l.Code[l.Pointer]),
+					Line: l.Line,
+				}
 			}
 		}
 		l.Advance()
 	}
-	return l.Tokens
+	l.AddToken(EOF, "")
+	return l.Tokens, nil
 }
 
 func (l *Lexer) Advance() {
@@ -134,4 +149,8 @@ func (l *Lexer) AddToken(t Tokentype, value string) {
 
 func (l *Lexer) IsNumber(value byte) bool {
 	return ('0' <= value && value <= '9')
+}
+
+func (l *Lexer) IsAlpha(value byte) bool {
+	return ('A' <= value && value <= 'Z') || ('a' <= value && value <= 'z')
 }

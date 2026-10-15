@@ -1,10 +1,21 @@
 package assembler
 
-func Assemble(input string) ([]uint8, error) {
+import "fmt"
+
+func Assemble(input string) error {
 	l := NewLexer(input)
-	tokens := l.Lex()
+	tokens, err := l.Lex()
+	if err != nil {
+		return err
+	}
 
 	p := NewParser(tokens)
-	p.Parse()
-	return []uint8{}, nil
+	program, err := p.Parse()
+	if err != nil {
+		return err
+	}
+	for _, s := range program.Statements {
+		fmt.Println(s.Name, s.Operands)
+	}
+	return nil
 }
